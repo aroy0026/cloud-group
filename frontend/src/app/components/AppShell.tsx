@@ -9,6 +9,7 @@ import {
 } from "./ui/dropdown-menu";
 import { LayoutDashboard, UploadCloud, Search, Tags, LogOut, User, Menu, X } from "lucide-react";
 import { useAuth } from "../auth";
+import { toast } from "sonner";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -22,8 +23,9 @@ export function AppShell() {
   const { email, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("Signed out");
     navigate("/signin", { replace: true });
   };
 

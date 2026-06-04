@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -9,22 +9,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Badge } from "./ui/badge";
 import { Plus, X, Search, UploadCloud, Loader2, ImageOff, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { SAMPLE_MEDIA } from "./sample-data";
-import { MediaCard, type Media } from "./MediaCard";
+import { MediaCard } from "./MediaCard";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { useMediaLibrary, type MediaItem } from "../media-library";
 
 type TagRow = { id: string; tag: string; count: string };
 
 export function SearchPage() {
+  const { searchByTags, searchBySpecies, searchByThumbnail, searchByFile } = useMediaLibrary();
   const [tagRows, setTagRows] = useState<TagRow[]>([
     { id: "r1", tag: "", count: "" },
   ]);
   const [species, setSpecies] = useState("");
   const [thumbUrl, setThumbUrl] = useState("");
-  const [results, setResults] = useState<Media[] | null>(null);
+  const [queryFile, setQueryFile] = useState<File | null>(null);
+  const [results, setResults] = useState<MediaItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [progressMsg, setProgressMsg] = useState<string | null>(null);
-  const [open, setOpen] = useState<Media | null>(null);
+  const [open, setOpen] = useState<MediaItem | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { tab: tabParam } = useParams();
   const validTabs = ["tags", "species", "thumb", "file"] as const;
@@ -33,14 +36,22 @@ export function SearchPage() {
     : "tags";
   const setTab = (v: string) => navigate(`/search/${v}`);
 
-  const runMockSearch = (msg?: string) => {
+  const runSearch = (searcher: () => MediaItem[] | Promise<MediaItem[]>, msg?: string) => {
     setLoading(true);
     setProgressMsg(msg ?? null);
-    setTimeout(() => {
-      setResults(SAMPLE_MEDIA.slice(0, 6));
-      setLoading(false);
-      setProgressMsg(null);
-    }, 900);
+    Promise.resolve(searcher())
+      .then((matches) => {
+        setResults(matches);
+        if (!matches.length) toast.info("No matching media found.");
+      })
+      .catch(() => {
+        setResults([]);
+        toast.error("Search failed", { description: "Please check the query and try again." });
+      })
+      .finally(() => {
+        setLoading(false);
+        setProgressMsg(null);
+      });
   };
 
   const updateRow = (id: string, key: "tag" | "count", v: string) =>
@@ -79,6 +90,7 @@ export function SearchPage() {
                         placeholder={idx === 0 ? "koala" : idx === 1 ? "wombat" : "tag"}
                         value={r.tag}
                         onChange={(e) => updateRow(r.id, "tag", e.target.value)}
+                        disabled={loading}
                       />
                     </div>
                     <div className="w-32 space-y-1.5">
@@ -89,13 +101,14 @@ export function SearchPage() {
                         placeholder={idx === 0 ? "3" : "2"}
                         value={r.count}
                         onChange={(e) => updateRow(r.id, "count", e.target.value)}
+                        disabled={loading}
                       />
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => setTagRows((rs) => rs.filter((x) => x.id !== r.id))}
-                      disabled={tagRows.length === 1}
+                      disabled={tagRows.length === 1 || loading}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -105,18 +118,22 @@ export function SearchPage() {
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
+                  disabled={loading}
                   onClick={() =>
                     setTagRows((rs) => [...rs, { id: `r${Date.now()}`, tag: "", count: "" }])
                   }
                 >
                   <Plus className="mr-2 h-4 w-4" /> Add tag
                 </Button>
-                <Button onClick={() => {
-                  if (tagRows.some((r) => !r.tag || !r.count)) {
-                    toast.error("Please fill out tag and min count for each row.");
+                <Button disabled={loading} onClick={() => {
+                  const invalid = tagRows.some((r) => !r.tag.trim() || !Number.isFinite(Number(r.count)) || Number(r.count) < 1);
+                  if (invalid) {
+                    toast.error("Please enter a tag and a min count greater than zero for each row.");
                     return;
                   }
-                  runMockSearch();
+                  runSearch(() =>
+                    searchByTags(tagRows.map((r) => ({ tag: r.tag, minCount: Number(r.count) })))
+                  );
                 }}>
                   <Search className="mr-2 h-4 w-4" /> Run search
                 </Button>
@@ -130,9 +147,15 @@ export function SearchPage() {
             <CardContent className="p-5 space-y-4 max-w-xl">
               <div className="space-y-1.5">
                 <Label>Species</Label>
-                <Input placeholder="dingo" value={species} onChange={(e) => setSpecies(e.target.value)} />
+                <Input placeholder="dingo" value={species} onChange={(e) => setSpecies(e.target.value)} disabled={loading} />
               </div>
-              <Button onClick={() => runMockSearch()}>
+              <Button disabled={loading} onClick={() => {
+                if (!species.trim()) {
+                  toast.error("Please enter a species name.");
+                  return;
+                }
+                runSearch(() => searchBySpecies(species));
+              }}>
                 <Search className="mr-2 h-4 w-4" /> Run search
               </Button>
             </CardContent>
@@ -148,9 +171,22 @@ export function SearchPage() {
                   placeholder="https://storage.googleapis.com/.../thumbnails/image123.png"
                   value={thumbUrl}
                   onChange={(e) => setThumbUrl(e.target.value)}
+                  disabled={loading}
                 />
               </div>
-              <Button onClick={() => runMockSearch()}>
+              <Button disabled={loading} onClick={() => {
+                if (!thumbUrl.trim()) {
+                  toast.error("Please enter a thumbnail URL.");
+                  return;
+                }
+                try {
+                  new URL(thumbUrl);
+                } catch {
+                  toast.error("Please enter a valid thumbnail URL.");
+                  return;
+                }
+                runSearch(() => searchByThumbnail(thumbUrl));
+              }}>
                 <ExternalLink className="mr-2 h-4 w-4" /> Find original image
               </Button>
             </CardContent>
@@ -168,13 +204,41 @@ export function SearchPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   The file is analysed for tags but not stored permanently.
                 </p>
-                <Button className="mt-4" variant="outline">Choose file</Button>
+                <Button className="mt-4" variant="outline" disabled={loading} onClick={() => fileInputRef.current?.click()}>
+                  Choose file
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    if (file && !(file.type.startsWith("image/") || file.type.startsWith("video/"))) {
+                      toast.error("Please choose an image or video file.");
+                      return;
+                    }
+                    setQueryFile(file);
+                  }}
+                  onClick={(e) => {
+                    e.currentTarget.value = "";
+                  }}
+                />
+                {queryFile && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Selected: {queryFile.name}
+                  </p>
+                )}
               </div>
               <Button
+                disabled={loading}
                 onClick={() => {
-                  runMockSearch("Uploading temporary file…");
-                  setTimeout(() => setProgressMsg("Analyzing tags…"), 300);
-                  setTimeout(() => setProgressMsg("Searching for matching media…"), 600);
+                  if (!queryFile) {
+                    toast.error("Please choose a query file first.");
+                    return;
+                  }
+                  runSearch(() => searchByFile(queryFile), "Analyzing temporary file...");
+                  setTimeout(() => setProgressMsg("Searching for matching media..."), 350);
                 }}
               >
                 <Search className="mr-2 h-4 w-4" /> Run search
@@ -187,7 +251,7 @@ export function SearchPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2>Results</h2>
-          {results && <span className="text-sm text-muted-foreground">{results.length} matches</span>}
+          {results && <span className="text-sm text-muted-foreground">{results.length} match{results.length === 1 ? "" : "es"}</span>}
         </div>
 
         {loading && (
@@ -240,10 +304,14 @@ export function SearchPage() {
                 <div><span className="text-muted-foreground">ID:</span> {open.id}</div>
               </div>
               {open.type === "video" && (
-                <Button className="mt-3 w-fit"><ExternalLink className="mr-2 h-4 w-4" /> Open video URL</Button>
+                <Button className="mt-3 w-fit" onClick={() => window.open(open.fullUrl || open.thumbnail, "_blank", "noopener,noreferrer")}>
+                  <ExternalLink className="mr-2 h-4 w-4" /> Open video URL
+                </Button>
               )}
               {open.type === "image" && (
-                <Button className="mt-3 w-fit" variant="outline"><ExternalLink className="mr-2 h-4 w-4" /> Open full‑size image</Button>
+                <Button className="mt-3 w-fit" variant="outline" onClick={() => window.open(open.fullUrl || open.thumbnail, "_blank", "noopener,noreferrer")}>
+                  <ExternalLink className="mr-2 h-4 w-4" /> Open full‑size image
+                </Button>
               )}
             </>
           )}

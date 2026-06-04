@@ -7,13 +7,14 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAuth } from "../auth";
+import { toast } from "sonner";
 
 type Mode = "signin" | "signup";
 
 export function AuthScreen({ mode }: { mode: Mode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,11 +26,22 @@ export function AuthScreen({ mode }: { mode: Mode }) {
     (location.state as { info?: string } | null)?.info ?? null
   );
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfo(null);
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     if (mode === "signup") {
+      if (!first.trim() || !last.trim()) {
+        setError("Please enter your first and last name.");
+        return;
+      }
       if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
         setError("Password must be at least 8 characters and contain letters and numbers.");
         return;
@@ -39,23 +51,38 @@ export function AuthScreen({ mode }: { mode: Mode }) {
         return;
       }
     }
-    if (!email) {
-      setError("Please enter a valid email.");
+
+    if (!password) {
+      setError("Please enter your password.");
       return;
     }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
       if (mode === "signup") {
+        await signUp({
+          firstName: first.trim(),
+          lastName: last.trim(),
+          email: trimmedEmail,
+          password,
+        });
+        toast.success("Account created", { description: "Please verify your email before signing in." });
         navigate("/signin", {
           replace: true,
           state: { info: "Please check your email to verify your account." },
         });
       } else {
-        signIn(email);
+        await signIn({ email: trimmedEmail, password });
+        toast.success("Signed in successfully");
         navigate("/dashboard", { replace: true });
       }
-    }, 900);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Authentication failed. Please try again.";
+      setError(message);
+      toast.error(mode === "signin" ? "Sign in failed" : "Sign up failed", { description: message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -95,11 +122,11 @@ export function AuthScreen({ mode }: { mode: Mode }) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="first">First name</Label>
-                  <Input id="first" placeholder="Jane" value={first} onChange={(e) => setFirst(e.target.value)} />
+                  <Input id="first" placeholder="Jane" value={first} onChange={(e) => setFirst(e.target.value)} disabled={loading} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="last">Last name</Label>
-                  <Input id="last" placeholder="Doe" value={last} onChange={(e) => setLast(e.target.value)} />
+                  <Input id="last" placeholder="Doe" value={last} onChange={(e) => setLast(e.target.value)} disabled={loading} />
                 </div>
               </div>
             )}
@@ -107,13 +134,13 @@ export function AuthScreen({ mode }: { mode: Mode }) {
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="you@university.edu"
-                value={email} onChange={(e) => setEmail(e.target.value)} />
+                value={email} onChange={(e) => setEmail(e.target.value)} disabled={loading} />
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" placeholder="••••••••"
-                value={password} onChange={(e) => setPassword(e.target.value)} />
+                value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} />
               {mode === "signup" && (
                 <p className="text-xs text-muted-foreground">At least 8 characters, with letters and numbers.</p>
               )}
@@ -123,7 +150,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
               <div className="space-y-1.5">
                 <Label htmlFor="confirm">Confirm password</Label>
                 <Input id="confirm" type="password" placeholder="••••••••"
-                  value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+                  value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={loading} />
               </div>
             )}
 
@@ -158,4 +185,8 @@ export function AuthScreen({ mode }: { mode: Mode }) {
       </div>
     </div>
   );
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

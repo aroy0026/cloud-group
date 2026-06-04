@@ -3,16 +3,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Image as ImageIcon, Video, Tag, Bell, ArrowRight, TrendingUp } from "lucide-react";
-import { SAMPLE_MEDIA } from "./sample-data";
 import { MediaCard } from "./MediaCard";
+import { useMediaLibrary } from "../media-library";
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { media, subscriptions } = useMediaLibrary();
+  const videos = media.filter((item) => item.type === "video").length;
+  const tagTotals = media.reduce<Record<string, number>>((acc, item) => {
+    item.tags.forEach((tag) => {
+      acc[tag.name] = (acc[tag.name] ?? 0) + tag.count;
+    });
+    return acc;
+  }, {});
+  const uniqueTagCount = Object.keys(tagTotals).length;
+  const topSpecies = Object.entries(tagTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const recent = [...media]
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
+    .slice(0, 6);
   const stats = [
-    { label: "Total media", value: "1,284", icon: ImageIcon, hint: "+24 this week" },
-    { label: "Videos", value: "97", icon: Video, hint: "+3 this week" },
-    { label: "Unique tags", value: "142", icon: Tag, hint: "Auto‑generated" },
-    { label: "Subscriptions", value: "5", icon: Bell, hint: "Active alerts" },
+    { label: "Total media", value: media.length.toLocaleString(), icon: ImageIcon, hint: "Stored locally for demo" },
+    { label: "Videos", value: videos.toLocaleString(), icon: Video, hint: "Image/video split" },
+    { label: "Unique tags", value: uniqueTagCount.toLocaleString(), icon: Tag, hint: "Auto-generated + manual" },
+    { label: "Subscriptions", value: subscriptions.length.toLocaleString(), icon: Bell, hint: "Active alerts" },
   ];
   return (
     <div className="space-y-6">
@@ -55,7 +70,7 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {SAMPLE_MEDIA.slice(0, 6).map((m) => (
+              {recent.map((m) => (
                 <MediaCard key={m.id} media={m} />
               ))}
             </div>
@@ -67,23 +82,20 @@ export function Dashboard() {
             <CardTitle>Top species</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[
-              { name: "kangaroo", count: 412 },
-              { name: "koala", count: 287 },
-              { name: "wombat", count: 134 },
-              { name: "dingo", count: 76 },
-              { name: "echidna", count: 41 },
-            ].map((s) => (
-              <div key={s.name}>
+            {topSpecies.map(([name, count]) => (
+              <div key={name}>
                 <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="capitalize">{s.name}</span>
-                  <Badge variant="secondary">{s.count}</Badge>
+                  <span className="capitalize">{name}</span>
+                  <Badge variant="secondary">{count}</Badge>
                 </div>
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary" style={{ width: `${(s.count / 412) * 100}%` }} />
+                  <div className="h-full bg-primary" style={{ width: `${(count / Math.max(1, topSpecies[0]?.[1] ?? 1)) * 100}%` }} />
                 </div>
               </div>
             ))}
+            {!topSpecies.length && (
+              <p className="text-sm text-muted-foreground">No tags yet. Upload media to start building species stats.</p>
+            )}
           </CardContent>
         </Card>
       </div>

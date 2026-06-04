@@ -5,8 +5,11 @@ import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { UploadCloud, FileVideo, FileImage, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
-import { SAMPLE_MEDIA } from "./sample-data";
 import { MediaCard } from "./MediaCard";
+import { calculateFileChecksum, readImageAsDataUrl, useMediaLibrary } from "../media-library";
+
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "video/mp4", "video/quicktime"];
 
 type UploadStatus =
   | "ready"
@@ -62,43 +65,66 @@ function formatSize(b: number) {
 }
 
 export function UploadPage() {
-  const [files, setFiles] = useState<UploadFile[]>([
-    { id: "f1", name: "koala_riverbank.jpg", type: "image/jpeg", size: 2_400_000, status: "ready" },
-  ]);
+  const { media, uploadMedia } = useMediaLibrary();
+  const [files, setFiles] = useState<UploadFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recent = [...media]
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
+    .slice(0, 6);
 
   const addFiles = (list: FileList | File[]) => {
     const arr = Array.from(list);
-    const next: UploadFile[] = arr.map((f, i) => ({
+    const valid = arr.filter((file) => {
+      if (!isAcceptedType(file)) {
+        toast.error("Unsupported file type", { description: `${file.name} must be JPG, PNG, WebP, MP4, or MOV.` });
+        return false;
+      }
+      if (file.size > MAX_UPLOAD_SIZE) {
+        toast.error("File too large", { description: `${file.name} exceeds the 100MB upload limit.` });
+        return false;
+      }
+      return true;
+    });
+
+    const next: UploadFile[] = valid.map((f, i) => ({
       id: `f-${Date.now()}-${i}`,
       name: f.name,
       type: f.type || "application/octet-stream",
       size: f.size,
       status: "checksum",
     }));
+    if (!next.length) return;
     setFiles((prev) => [...next, ...prev]);
-    next.forEach((nf, idx) => simulate(nf.id, idx === 0 && nf.name.toLowerCase().includes("dup")));
+    next.forEach((nf, idx) => processFile(valid[idx], nf.id));
   };
 
-  const simulate = (id: string, dup = false) => {
+  const processFile = async (file: File, id: string) => {
     const update = (status: UploadStatus) =>
       setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, status } : f)));
-    setTimeout(() => {
-      if (dup) {
+
+    try {
+      const checksum = await calculateFileChecksum(file);
+      update("uploading");
+      const dataUrl = await readImageAsDataUrl(file);
+      update("processing");
+      const result = await uploadMedia({
+        file,
+        checksum,
+        dataUrl,
+      });
+      if (result.duplicate) {
         update("duplicate");
         toast.warning("Duplicate file detected", { description: "This file already exists in your library." });
         return;
       }
-      update("uploading");
-      setTimeout(() => {
-        update("processing");
-        setTimeout(() => {
-          update("done");
-          toast.success("Upload successful", { description: "Thumbnails and tags are being generated." });
-        }, 1200);
-      }, 1000);
-    }, 800);
+      update("done");
+      toast.success("Upload successful", { description: "The file was uploaded and queued for tagging." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not upload or process this file.";
+      update("error");
+      toast.error("Upload failed", { description: message });
+    }
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -138,13 +164,16 @@ export function UploadPage() {
                 ref={inputRef}
                 type="file"
                 multiple
-                accept="image/*,video/*"
+                accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
                 className="hidden"
                 onChange={(e) => e.target.files && addFiles(e.target.files)}
+                onClick={(e) => {
+                  e.currentTarget.value = "";
+                }}
               />
             </div>
             <p className="text-xs text-muted-foreground mt-4">
-              Tip: name a file with "dup" in it to preview duplicate detection.
+              Duplicate detection uses a SHA-256 checksum, so the same file will be flagged even if it is renamed.
             </p>
           </CardContent>
         </Card>
@@ -189,12 +218,19 @@ export function UploadPage() {
         <CardContent className="p-5">
           <h3 className="mb-4">Recent uploads</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {SAMPLE_MEDIA.slice(0, 6).map((m) => (
+            {recent.map((m) => (
               <MediaCard key={m.id} media={m} />
             ))}
+            {!recent.length && (
+              <p className="text-sm text-muted-foreground">No media yet. Upload a file to populate the library.</p>
+            )}
           </div>
         </CardContent>
       </Card>
     </div>
   );
+}
+
+function isAcceptedType(file: File) {
+  return ACCEPTED_TYPES.includes(file.type);
 }

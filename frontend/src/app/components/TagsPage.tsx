@@ -13,52 +13,120 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
-import { Plus, Search, Trash2, TagIcon, BellRing, X } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, TagIcon, BellRing, X } from "lucide-react";
 import { toast } from "sonner";
-import { SAMPLE_MEDIA } from "./sample-data";
 import { MediaCard } from "./MediaCard";
+import { useMediaLibrary } from "../media-library";
 
 export function TagsPage() {
+  const {
+    media,
+    subscriptions,
+    notificationSettings,
+    addTags,
+    removeTags,
+    deleteMedia,
+    addSubscription,
+    removeSubscription,
+    setNotificationSettings,
+  } = useMediaLibrary();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState("");
   const [type, setType] = useState("all");
+  const [dateFilter, setDateFilter] = useState("any");
   const [addOpen, setAddOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
-  const [subs, setSubs] = useState<string[]>(["koala", "wombat"]);
   const [newSub, setNewSub] = useState("");
-  const [emailOn, setEmailOn] = useState(true);
-  const [thumbOn, setThumbOn] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const filtered = SAMPLE_MEDIA.filter((m) => {
+  const filtered = media.filter((m) => {
     const matchesText = !filter ||
       m.name.toLowerCase().includes(filter.toLowerCase()) ||
-      m.tags.some((t) => t.name.includes(filter.toLowerCase()));
+      m.tags.some((t) => t.name.toLowerCase().includes(filter.toLowerCase()));
     const matchesType = type === "all" || m.type === type;
-    return matchesText && matchesType;
+    const ageMs = Date.now() - new Date(m.createdAt).getTime();
+    const matchesDate = dateFilter === "any"
+      || (dateFilter === "7d" && ageMs <= 7 * 86_400_000)
+      || (dateFilter === "30d" && ageMs <= 30 * 86_400_000);
+    return matchesText && matchesType && matchesDate;
   });
 
   const selectedIds = Object.keys(selected).filter((k) => selected[k]);
   const toggle = (id: string) => setSelected((s) => ({ ...s, [id]: !s[id] }));
 
-  const apply = (mode: "add" | "remove") => {
+  const apply = async (mode: "add" | "remove") => {
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
     if (!tags.length) { toast.error("Please enter at least one tag."); return; }
-    toast.success(
-      mode === "add"
-        ? `Tags successfully added to ${selectedIds.length} files`
-        : `Tags successfully removed from ${selectedIds.length} files`
-    );
-    setTagsInput("");
-    setAddOpen(false);
-    setRemoveOpen(false);
+    setActionLoading(true);
+    try {
+      if (mode === "add") await addTags(selectedIds, tags);
+      else await removeTags(selectedIds, tags);
+      toast.success(
+        mode === "add"
+          ? `Tags successfully added to ${selectedIds.length} files`
+          : `Tags successfully removed from ${selectedIds.length} files`
+      );
+      setTagsInput("");
+      setAddOpen(false);
+      setRemoveOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Bulk tag edit failed.";
+      toast.error("Tag update failed", { description: message });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const doDelete = () => {
-    toast.success(`${selectedIds.length} files deleted`);
-    setSelected({});
-    setDelOpen(false);
+  const doDelete = async () => {
+    setActionLoading(true);
+    try {
+      await deleteMedia(selectedIds);
+      toast.success(`${selectedIds.length} files deleted`);
+      setSelected({});
+      setDelOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Delete failed.";
+      toast.error("Delete failed", { description: message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAddSubscription = async () => {
+    const v = newSub.trim().toLowerCase();
+    if (!v) {
+      toast.error("Please enter a tag to subscribe to.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      if (!await addSubscription(v)) {
+        toast.warning("Already subscribed");
+        return;
+      }
+      setNewSub("");
+      toast.success(`Subscribed to "${v}"`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Subscription update failed.";
+      toast.error("Subscription failed", { description: message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRemoveSubscription = async (tag: string) => {
+    setActionLoading(true);
+    try {
+      await removeSubscription(tag);
+      toast.success(`Unsubscribed from "${tag}"`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Subscription update failed.";
+      toast.error("Subscription failed", { description: message });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
@@ -95,7 +163,7 @@ export function TagsPage() {
                   <SelectItem value="video">Videos</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="any">
+              <Select value={dateFilter} onValueChange={setDateFilter}>
                 <SelectTrigger className="md:w-40"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="any">Any date</SelectItem>
@@ -110,13 +178,13 @@ export function TagsPage() {
                 {selectedIds.length} selected of {filtered.length} files
               </p>
               <div className="flex items-center gap-2">
-                <Button size="sm" disabled={!selectedIds.length} onClick={() => setAddOpen(true)}>
+                <Button size="sm" disabled={!selectedIds.length || actionLoading} onClick={() => setAddOpen(true)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Add tags
                 </Button>
-                <Button size="sm" variant="outline" disabled={!selectedIds.length} onClick={() => setRemoveOpen(true)}>
+                <Button size="sm" variant="outline" disabled={!selectedIds.length || actionLoading} onClick={() => setRemoveOpen(true)}>
                   Remove tags
                 </Button>
-                <Button size="sm" variant="destructive" disabled={!selectedIds.length} onClick={() => setDelOpen(true)}>
+                <Button size="sm" variant="destructive" disabled={!selectedIds.length || actionLoading} onClick={() => setDelOpen(true)}>
                   <Trash2 className="mr-1.5 h-4 w-4" /> Delete selected
                 </Button>
               </div>
@@ -147,16 +215,16 @@ export function TagsPage() {
 
             <div>
               <Label className="text-sm">Subscribed tags</Label>
-              {subs.length === 0 ? (
+              {subscriptions.length === 0 ? (
                 <div className="mt-2 border border-dashed border-border rounded-lg p-5 text-center text-sm text-muted-foreground">
                   No subscriptions yet. Add a tag below to start getting alerts.
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {subs.map((t) => (
+                  {subscriptions.map((t) => (
                     <Badge key={t} variant="secondary" className="pl-2.5 pr-1 py-1 gap-1">
                       {t}
-                      <button onClick={() => setSubs((s) => s.filter((x) => x !== t))}
+                      <button disabled={actionLoading} onClick={() => handleRemoveSubscription(t)}
                         className="rounded-full hover:bg-black/5 p-0.5">
                         <X className="h-3 w-3" />
                       </button>
@@ -169,27 +237,49 @@ export function TagsPage() {
             <div className="flex items-end gap-2">
               <div className="flex-1 space-y-1.5">
                 <Label>Add subscription</Label>
-                <Input placeholder="e.g. dingo" value={newSub} onChange={(e) => setNewSub(e.target.value)} />
+                <Input placeholder="e.g. dingo" value={newSub} onChange={(e) => setNewSub(e.target.value)} disabled={actionLoading} />
               </div>
-              <Button onClick={() => {
-                const v = newSub.trim().toLowerCase();
-                if (!v) return;
-                if (subs.includes(v)) { toast.warning("Already subscribed"); return; }
-                setSubs((s) => [...s, v]);
-                setNewSub("");
-                toast.success(`Subscribed to "${v}"`);
-              }}>Add</Button>
+              <Button onClick={handleAddSubscription} disabled={actionLoading}>
+                {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Add
+              </Button>
             </div>
 
             <div className="border-t border-border pt-4 space-y-3">
               <h4>Notification settings</h4>
               <div className="flex items-center justify-between">
                 <Label htmlFor="email-on" className="font-normal text-sm">Email me when new media for my tags is uploaded</Label>
-                <Switch id="email-on" checked={emailOn} onCheckedChange={setEmailOn} />
+                <Switch
+                  id="email-on"
+                  checked={notificationSettings.emailOn}
+                  disabled={actionLoading}
+                  onCheckedChange={async (emailOn) => {
+                    try {
+                      await setNotificationSettings({ ...notificationSettings, emailOn });
+                      toast.success("Notification settings saved");
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : "Could not save notification settings.";
+                      toast.error("Settings update failed", { description: message });
+                    }
+                  }}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="thumb-on" className="font-normal text-sm">Include thumbnail previews in emails</Label>
-                <Switch id="thumb-on" checked={thumbOn} onCheckedChange={setThumbOn} />
+                <Switch
+                  id="thumb-on"
+                  checked={notificationSettings.thumbOn}
+                  disabled={actionLoading}
+                  onCheckedChange={async (thumbOn) => {
+                    try {
+                      await setNotificationSettings({ ...notificationSettings, thumbOn });
+                      toast.success("Notification settings saved");
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : "Could not save notification settings.";
+                      toast.error("Settings update failed", { description: message });
+                    }
+                  }}
+                />
               </div>
             </div>
           </CardContent>
@@ -204,11 +294,14 @@ export function TagsPage() {
           </DialogHeader>
           <div className="space-y-1.5">
             <Label>Tags to add</Label>
-            <Input placeholder="koala, eucalyptus" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
+            <Input placeholder="koala, eucalyptus" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} disabled={actionLoading} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => apply("add")}>Apply to selected files</Button>
+            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={actionLoading}>Cancel</Button>
+            <Button onClick={() => apply("add")} disabled={actionLoading}>
+              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Apply to selected files
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -221,11 +314,14 @@ export function TagsPage() {
           </DialogHeader>
           <div className="space-y-1.5">
             <Label>Tags to remove</Label>
-            <Input placeholder="grass, joey" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
+            <Input placeholder="grass, joey" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} disabled={actionLoading} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRemoveOpen(false)}>Cancel</Button>
-            <Button onClick={() => apply("remove")}>Apply to selected files</Button>
+            <Button variant="outline" onClick={() => setRemoveOpen(false)} disabled={actionLoading}>Cancel</Button>
+            <Button onClick={() => apply("remove")} disabled={actionLoading}>
+              {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Apply to selected files
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -239,9 +335,9 @@ export function TagsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={doDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete permanently
+            <AlertDialogCancel disabled={actionLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={doDelete} disabled={actionLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {actionLoading ? "Deleting..." : "Delete permanently"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
