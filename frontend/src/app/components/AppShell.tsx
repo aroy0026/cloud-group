@@ -26,7 +26,7 @@ export function AppShell() {
   const handleSignOut = async () => {
     await signOut();
     toast.success("Signed out");
-    navigate("/signin", { replace: true });
+    navigate("/", { replace: true });
   };
 
   return (
@@ -38,24 +38,30 @@ export function AppShell() {
           </button>
           <Logo />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-9 gap-2 px-2">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {(email ?? "?").slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <span className="hidden sm:inline text-sm">{email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>{email}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem><User className="mr-2 h-4 w-4" /> Profile</DropdownMenuItem>
-            <DropdownMenuItem onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" /> Sign out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-9 gap-2 px-2">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {(email ?? "?").slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="hidden sm:inline text-sm">{email}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>{email}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem><User className="mr-2 h-4 w-4" /> Profile</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" /> Sign out</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:inline">Sign out</span>
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 flex">

@@ -4,12 +4,18 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Loader2, Info, AlertCircle } from "lucide-react";
+import { Loader2, Info, AlertCircle, CheckCircle2, Circle } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAuth } from "../auth";
 import { toast } from "sonner";
 
 type Mode = "signin" | "signup";
+
+const PASSWORD_RULES = [
+  { id: "length", label: "At least 8 characters", test: (value: string) => value.length >= 8 },
+  { id: "letter", label: "Contains a letter", test: (value: string) => /[a-zA-Z]/.test(value) },
+  { id: "number", label: "Contains a number", test: (value: string) => /\d/.test(value) },
+];
 
 export function AuthScreen({ mode }: { mode: Mode }) {
   const navigate = useNavigate();
@@ -42,8 +48,8 @@ export function AuthScreen({ mode }: { mode: Mode }) {
         setError("Please enter your first and last name.");
         return;
       }
-      if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-        setError("Password must be at least 8 characters and contain letters and numbers.");
+      if (!passwordMeetsPolicy(password)) {
+        setError("Please choose a password that meets every listed policy rule.");
         return;
       }
       if (password !== confirm) {
@@ -67,9 +73,9 @@ export function AuthScreen({ mode }: { mode: Mode }) {
           password,
         });
         toast.success("Account created", { description: "Please verify your email before signing in." });
-        navigate("/signin", {
+        navigate("/verify-email", {
           replace: true,
-          state: { info: "Please check your email to verify your account." },
+          state: { email: trimmedEmail },
         });
       } else {
         await signIn({ email: trimmedEmail, password });
@@ -142,7 +148,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
               <Input id="password" type="password" placeholder="••••••••"
                 value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} />
               {mode === "signup" && (
-                <p className="text-xs text-muted-foreground">At least 8 characters, with letters and numbers.</p>
+                <PasswordPolicyChecklist password={password} confirm={confirm} />
               )}
             </div>
 
@@ -165,6 +171,8 @@ export function AuthScreen({ mode }: { mode: Mode }) {
               <>
                 Don't have an account?{" "}
                 <Link to="/signup" className="text-primary hover:underline">Create one</Link>
+                <span className="mx-2 text-muted-foreground">·</span>
+                <Link to="/verify-email" className="text-primary hover:underline">Verify email</Link>
               </>
             ) : (
               <>
@@ -189,4 +197,39 @@ export function AuthScreen({ mode }: { mode: Mode }) {
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function passwordMeetsPolicy(password: string) {
+  return PASSWORD_RULES.every((rule) => rule.test(password));
+}
+
+function PasswordPolicyChecklist({ password, confirm }: { password: string; confirm: string }) {
+  const matchReady = confirm.length > 0;
+  const passwordsMatch = matchReady && password === confirm;
+
+  return (
+    <div className="rounded-lg border border-border bg-accent/30 p-3 space-y-2">
+      <p className="text-xs text-muted-foreground">Password policy</p>
+      <div className="space-y-1.5">
+        {PASSWORD_RULES.map((rule) => (
+          <PasswordRule key={rule.id} valid={rule.test(password)} label={rule.label} />
+        ))}
+        <PasswordRule
+          valid={passwordsMatch}
+          neutral={!matchReady}
+          label={matchReady ? "Passwords match" : "Confirm password to verify match"}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PasswordRule({ valid, neutral = false, label }: { valid: boolean; neutral?: boolean; label: string }) {
+  const Icon = valid ? CheckCircle2 : Circle;
+  return (
+    <div className={`flex items-center gap-2 text-xs ${valid ? "text-primary" : neutral ? "text-muted-foreground" : "text-destructive"}`}>
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </div>
+  );
 }

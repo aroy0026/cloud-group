@@ -2,7 +2,7 @@ import type { MediaItem, NotificationSettings, TagCondition } from "./media-libr
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
-export const apiEnabled = API_BASE_URL.length > 0;
+export const apiEnabled = API_BASE_URL.length > 0 && !API_BASE_URL.includes("your-api-gateway");
 
 export type AuthSession = {
   email: string;
