@@ -1,0 +1,254 @@
+import { useState } from "react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Card, CardContent } from "./ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Badge } from "./ui/badge";
+import { Plus, X, Search, UploadCloud, Loader2, ImageOff, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { SAMPLE_MEDIA } from "./sample-data";
+import { MediaCard, type Media } from "./MediaCard";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
+
+type TagRow = { id: string; tag: string; count: string };
+
+export function SearchPage() {
+  const [tagRows, setTagRows] = useState<TagRow[]>([
+    { id: "r1", tag: "", count: "" },
+  ]);
+  const [species, setSpecies] = useState("");
+  const [thumbUrl, setThumbUrl] = useState("");
+  const [results, setResults] = useState<Media[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [progressMsg, setProgressMsg] = useState<string | null>(null);
+  const [open, setOpen] = useState<Media | null>(null);
+  const [tab, setTab] = useState("tags");
+
+  const runMockSearch = (msg?: string) => {
+    setLoading(true);
+    setProgressMsg(msg ?? null);
+    setTimeout(() => {
+      setResults(SAMPLE_MEDIA.slice(0, 6));
+      setLoading(false);
+      setProgressMsg(null);
+    }, 900);
+  };
+
+  const updateRow = (id: string, key: "tag" | "count", v: string) =>
+    setTagRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: v } : r)));
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm text-muted-foreground">Search / {labelFor(tab)}</p>
+        <h1>Search media</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Run complex queries across your wildlife library.
+        </p>
+      </div>
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full max-w-3xl">
+          <TabsTrigger value="tags">By tags & counts</TabsTrigger>
+          <TabsTrigger value="species">By species</TabsTrigger>
+          <TabsTrigger value="thumb">By thumbnail URL</TabsTrigger>
+          <TabsTrigger value="file">By file</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tags">
+          <Card className="border-border">
+            <CardContent className="p-5 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Search for media that contains all of the specified tags with minimum counts (logical AND).
+              </p>
+              <div className="space-y-2">
+                {tagRows.map((r, idx) => (
+                  <div key={r.id} className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      <Label>Tag name</Label>
+                      <Input
+                        placeholder={idx === 0 ? "koala" : idx === 1 ? "wombat" : "tag"}
+                        value={r.tag}
+                        onChange={(e) => updateRow(r.id, "tag", e.target.value)}
+                      />
+                    </div>
+                    <div className="w-32 space-y-1.5">
+                      <Label>Min count</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder={idx === 0 ? "3" : "2"}
+                        value={r.count}
+                        onChange={(e) => updateRow(r.id, "count", e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setTagRows((rs) => rs.filter((x) => x.id !== r.id))}
+                      disabled={tagRows.length === 1}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setTagRows((rs) => [...rs, { id: `r${Date.now()}`, tag: "", count: "" }])
+                  }
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Add tag
+                </Button>
+                <Button onClick={() => {
+                  if (tagRows.some((r) => !r.tag || !r.count)) {
+                    toast.error("Please fill out tag and min count for each row.");
+                    return;
+                  }
+                  runMockSearch();
+                }}>
+                  <Search className="mr-2 h-4 w-4" /> Run search
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="species">
+          <Card className="border-border">
+            <CardContent className="p-5 space-y-4 max-w-xl">
+              <div className="space-y-1.5">
+                <Label>Species</Label>
+                <Input placeholder="dingo" value={species} onChange={(e) => setSpecies(e.target.value)} />
+              </div>
+              <Button onClick={() => runMockSearch()}>
+                <Search className="mr-2 h-4 w-4" /> Run search
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="thumb">
+          <Card className="border-border">
+            <CardContent className="p-5 space-y-4 max-w-2xl">
+              <div className="space-y-1.5">
+                <Label>Thumbnail URL</Label>
+                <Input
+                  placeholder="https://storage.googleapis.com/.../thumbnails/image123.png"
+                  value={thumbUrl}
+                  onChange={(e) => setThumbUrl(e.target.value)}
+                />
+              </div>
+              <Button onClick={() => runMockSearch()}>
+                <ExternalLink className="mr-2 h-4 w-4" /> Find original image
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="file">
+          <Card className="border-border">
+            <CardContent className="p-5 space-y-4 max-w-2xl">
+              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center bg-accent/40">
+                <div className="h-12 w-12 mx-auto rounded-full bg-secondary text-primary flex items-center justify-center">
+                  <UploadCloud className="h-6 w-6" />
+                </div>
+                <p className="mt-3 text-sm">Upload a file for query only</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  The file is analysed for tags but not stored permanently.
+                </p>
+                <Button className="mt-4" variant="outline">Choose file</Button>
+              </div>
+              <Button
+                onClick={() => {
+                  runMockSearch("Uploading temporary file…");
+                  setTimeout(() => setProgressMsg("Analyzing tags…"), 300);
+                  setTimeout(() => setProgressMsg("Searching for matching media…"), 600);
+                }}
+              >
+                <Search className="mr-2 h-4 w-4" /> Run search
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2>Results</h2>
+          {results && <span className="text-sm text-muted-foreground">{results.length} matches</span>}
+        </div>
+
+        {loading && (
+          <Card className="border-border">
+            <CardContent className="p-10 flex flex-col items-center text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="mt-3 text-sm">{progressMsg ?? "Running query…"}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !results && (
+          <Card className="border-border">
+            <CardContent className="p-10 flex flex-col items-center text-center">
+              <div className="h-14 w-14 rounded-full bg-secondary text-primary flex items-center justify-center">
+                <ImageOff className="h-7 w-7" />
+              </div>
+              <h3 className="mt-3">No results yet</h3>
+              <p className="text-sm text-muted-foreground mt-1">Try adjusting your search criteria.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && results && (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {results.map((m) => (
+              <MediaCard key={m.id} media={m} showCheckbox onOpen={setOpen} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent className="max-w-3xl">
+          {open && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{open.name}</DialogTitle>
+              </DialogHeader>
+              <div className="rounded-lg overflow-hidden bg-muted aspect-video">
+                <ImageWithFallback src={open.thumbnail} alt={open.name} className="w-full h-full object-cover" />
+              </div>
+              <div className="flex flex-wrap gap-1 mt-3">
+                {open.tags.map((t) => (
+                  <Badge key={t.name} variant="secondary">{t.name} ×{t.count}</Badge>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+                <div><span className="text-muted-foreground">Type:</span> {open.type}</div>
+                <div><span className="text-muted-foreground">ID:</span> {open.id}</div>
+              </div>
+              {open.type === "video" && (
+                <Button className="mt-3 w-fit"><ExternalLink className="mr-2 h-4 w-4" /> Open video URL</Button>
+              )}
+              {open.type === "image" && (
+                <Button className="mt-3 w-fit" variant="outline"><ExternalLink className="mr-2 h-4 w-4" /> Open full‑size image</Button>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function labelFor(t: string) {
+  return t === "tags" ? "Tags & counts"
+    : t === "species" ? "Species"
+    : t === "thumb" ? "Thumbnail URL"
+    : "File";
+}
