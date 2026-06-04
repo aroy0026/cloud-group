@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -5,7 +6,8 @@ import { Image as ImageIcon, Video, Tag, Bell, ArrowRight, TrendingUp } from "lu
 import { SAMPLE_MEDIA } from "./sample-data";
 import { MediaCard } from "./MediaCard";
 
-export function Dashboard({ onNavigate }: { onNavigate: (v: string) => void }) {
+export function Dashboard() {
+  const navigate = useNavigate();
   const stats = [
     { label: "Total media", value: "1,284", icon: ImageIcon, hint: "+24 this week" },
     { label: "Videos", value: "97", icon: Video, hint: "+3 this week" },
@@ -47,7 +49,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (v: string) => void }) {
         <Card className="lg:col-span-2 border-border">
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Recent uploads</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => onNavigate("upload")}>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/upload")}>
               Upload more <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           </CardHeader>

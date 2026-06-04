@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useParams } from "react-router";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -24,7 +25,13 @@ export function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [progressMsg, setProgressMsg] = useState<string | null>(null);
   const [open, setOpen] = useState<Media | null>(null);
-  const [tab, setTab] = useState("tags");
+  const navigate = useNavigate();
+  const { tab: tabParam } = useParams();
+  const validTabs = ["tags", "species", "thumb", "file"] as const;
+  const tab = (validTabs as readonly string[]).includes(tabParam ?? "")
+    ? (tabParam as string)
+    : "tags";
+  const setTab = (v: string) => navigate(`/search/${v}`);
 
   const runMockSearch = (msg?: string) => {
     setLoading(true);

@@ -1,15 +1,19 @@
 import { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Loader2, Info, AlertCircle } from "lucide-react";
 import { Logo } from "./Logo";
+import { useAuth } from "../auth";
 
 type Mode = "signin" | "signup";
 
-export function AuthScreen({ onAuthenticated }: { onAuthenticated: (email: string) => void }) {
-  const [mode, setMode] = useState<Mode>("signin");
+export function AuthScreen({ mode }: { mode: Mode }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,7 +21,9 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (email: strin
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(
+    (location.state as { info?: string } | null)?.info ?? null
+  );
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,10 +47,13 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (email: strin
     setTimeout(() => {
       setLoading(false);
       if (mode === "signup") {
-        setInfo("Please check your email to verify your account.");
-        setMode("signin");
+        navigate("/signin", {
+          replace: true,
+          state: { info: "Please check your email to verify your account." },
+        });
       } else {
-        onAuthenticated(email);
+        signIn(email);
+        navigate("/dashboard", { replace: true });
       }
     }, 900);
   };
@@ -128,16 +137,12 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: (email: strin
             {mode === "signin" ? (
               <>
                 Don't have an account?{" "}
-                <button className="text-primary hover:underline" onClick={() => { setMode("signup"); setError(null); setInfo(null); }}>
-                  Create one
-                </button>
+                <Link to="/signup" className="text-primary hover:underline">Create one</Link>
               </>
             ) : (
               <>
                 Already have an account?{" "}
-                <button className="text-primary hover:underline" onClick={() => { setMode("signin"); setError(null); setInfo(null); }}>
-                  Sign in
-                </button>
+                <Link to="/signin" className="text-primary hover:underline">Sign in</Link>
               </>
             )}
           </div>
