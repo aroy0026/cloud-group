@@ -134,13 +134,15 @@ export function useAuth() {
   return v;
 }
 
-export function RequireAuth({ children }: { children: ReactNode }) {
+export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { email, token, checkingSession } = useAuth();
   const loc = useLocation();
   if (checkingSession) return <FullPageLoading />;
   if (!email || !token) return <Navigate to="/signin" replace state={{ from: loc.pathname }} />;
   return <>{children}</>;
 }
+
+export const RequireAuth = ProtectedRoute;
 
 export function RedirectIfAuthed({ children }: { children: ReactNode }) {
   const { email, token, checkingSession } = useAuth();

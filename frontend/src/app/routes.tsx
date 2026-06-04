@@ -8,7 +8,7 @@ import { TagsPage } from "./components/TagsPage";
 import { HomePage } from "./components/HomePage";
 import { NotFound } from "./components/NotFound";
 import { VerifyEmailScreen } from "./components/VerifyEmailScreen";
-import { RequireAuth, RedirectIfAuthed } from "./auth";
+import { ProtectedRoute, RedirectIfAuthed } from "./auth";
 
 export const router = createBrowserRouter([
   {
@@ -41,9 +41,9 @@ export const router = createBrowserRouter([
   },
   {
     element: (
-      <RequireAuth>
+      <ProtectedRoute>
         <AppShell />
-      </RequireAuth>
+      </ProtectedRoute>
     ),
     children: [
       { path: "/dashboard", Component: Dashboard },
