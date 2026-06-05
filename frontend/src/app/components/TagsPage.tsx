@@ -16,7 +16,8 @@ import {
 import { Loader2, Plus, Search, Trash2, TagIcon, BellRing, X } from "lucide-react";
 import { toast } from "sonner";
 import { MediaCard } from "./MediaCard";
-import { useMediaLibrary } from "../media-library";
+import { MediaPreviewDialog } from "./MediaPreviewDialog";
+import { useMediaLibrary, type MediaItem } from "../media-library";
 
 export function TagsPage() {
   const {
@@ -40,6 +41,7 @@ export function TagsPage() {
   const [tagsInput, setTagsInput] = useState("");
   const [newSub, setNewSub] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [open, setOpen] = useState<MediaItem | null>(null);
 
   const filtered = media.filter((m) => {
     const matchesText = !filter ||
@@ -198,6 +200,7 @@ export function TagsPage() {
                   showCheckbox
                   selected={!!selected[m.id]}
                   onToggle={toggle}
+                  onOpen={setOpen}
                 />
               ))}
             </div>
@@ -342,6 +345,7 @@ export function TagsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <MediaPreviewDialog media={open} onClose={() => setOpen(null)} />
     </div>
   );
 }

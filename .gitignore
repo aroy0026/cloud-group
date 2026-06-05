@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+AussieEcoLense/
+__pycache__/
+*.pyc
+aws/lambda/build/
+test_images/
+assignment_spec/

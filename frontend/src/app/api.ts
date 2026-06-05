@@ -58,8 +58,7 @@ export const api = {
   },
 
   listMedia(token: string) {
-    return request<{ results: AssignmentMedia[] }>("/media", { token })
-      .then((data) => data.results.map(normalizeMediaItem));
+    return request<unknown[]>("/files", { token }).then((items) => items.map(normalizeMediaItem));
   },
 
   async uploadMedia(input: {
@@ -69,57 +68,73 @@ export const api = {
   }) {
     const { file, checksum, token } = input;
     const prepared = await request<{
-      duplicate: boolean;
-      existingMediaId?: string;
+      duplicate?: boolean;
+      file?: unknown;
+      fileId?: string;
       mediaId?: string;
       uploadUrl?: string;
+      headers?: Record<string, string>;
+      fields?: Record<string, string>;
       message?: string;
-    }>("/uploads/presign", {
+    }>("/upload/prepare", {
       method: "POST",
       token,
       body: {
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
         size: file.size,
-        sha256: checksum,
+        checksum,
       },
     });
 
     if (prepared.duplicate) {
-      const existing = prepared.existingMediaId
-        ? await this.getMedia(prepared.existingMediaId, token).catch(() => null)
-        : null;
-      return { duplicate: true, file: existing };
+      return { duplicate: true, file: prepared.file ? normalizeMediaItem(prepared.file) : null };
     }
 
-    if (!prepared.uploadUrl || !prepared.mediaId) {
+    const fileId = prepared.fileId ?? prepared.mediaId;
+    if (!prepared.uploadUrl || !fileId) {
       throw new ApiError(prepared.message || "Upload URL missing from presign response.", 500);
     }
 
-    await uploadToSignedUrl(prepared.uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
-      body: file,
+    if (prepared.fields) {
+      const form = new FormData();
+      Object.entries(prepared.fields).forEach(([key, value]) => form.append(key, value));
+      form.append("file", file);
+      await uploadToSignedUrl(prepared.uploadUrl, { method: "POST", body: form });
+    } else {
+      await uploadToSignedUrl(prepared.uploadUrl, {
+        method: "PUT",
+        headers: prepared.headers ?? { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+    }
+
+    const completed = await request<unknown>("/upload/complete", {
+      method: "POST",
+      token,
+      body: {
+        fileId,
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        checksum,
+      },
     });
 
-    const queued = await this.getMedia(prepared.mediaId, token).catch(() => null);
-    return {
-      duplicate: false,
-      file:
-        queued ??
-        normalizeMediaItem({
-          mediaId: prepared.mediaId,
-          originalName: file.name,
-          contentType: file.type || "application/octet-stream",
-          tags: {},
-          status: "QUEUED",
-        }),
-    };
+    if (completed && typeof completed === "object" && "duplicate" in completed) {
+      const result = completed as { duplicate?: boolean; file?: unknown };
+      return {
+        duplicate: Boolean(result.duplicate),
+        file: result.file ? normalizeMediaItem(result.file) : null,
+      };
+    }
+
+    return { duplicate: false, file: normalizeMediaItem(completed) };
   },
 
   async getMedia(mediaId: string, token: string) {
-    const data = await request<{ media: AssignmentMedia | null }>(`/media/${mediaId}`, { token });
-    return data.media ? normalizeMediaItem(data.media) : null;
+    const items = await this.listMedia(token);
+    return items.find((item) => item.id === mediaId) ?? null;
   },
 
   searchByTags(conditions: TagCondition[], token: string) {
@@ -128,80 +143,64 @@ export const api = {
         .map((condition) => [cleanTag(condition.tag), Math.max(1, Number(condition.minCount) || 1)] as const)
         .filter(([tag]) => tag)
     );
-    return request<{ results: AssignmentMedia[] }>("/query/tags", {
+    return request<unknown[]>("/query/by-tags", {
       method: "POST",
       token,
-      body: { tags },
-    }).then((data) => data.results.map(normalizeMediaItem));
+      body: {
+        conditions: Object.entries(tags).map(([tag, minCount]) => ({ tag, minCount })),
+      },
+    }).then((items) => items.map(normalizeMediaItem));
   },
 
   searchBySpecies(species: string, token: string) {
-    return request<{ results: AssignmentMedia[] }>("/query/species", {
+    return request<unknown[]>("/query/by-species", {
       method: "POST",
       token,
       body: { species: cleanTag(species) },
-    }).then((data) => data.results.map(normalizeMediaItem));
+    }).then((items) => items.map(normalizeMediaItem));
   },
 
   searchByThumbnail(thumbnailUrl: string, token: string) {
-    return request<{ fullImageUrl: string | null; canonicalFullImageUrl?: string | null }>("/query/thumbnail", {
+    return request<unknown[]>("/query/by-thumbnail", {
       method: "POST",
       token,
       body: { thumbnailUrl },
-    }).then((data) =>
-      data.fullImageUrl
-        ? [
-            normalizeMediaItem({
-              mediaId: data.canonicalFullImageUrl ?? data.fullImageUrl,
-              originalName: "Resolved full media",
-              fullUrl: data.fullImageUrl,
-              thumbnailUrl,
-              tags: {},
-            }),
-          ]
-        : []
-    );
+    }).then((items) => items.map(normalizeMediaItem));
   },
 
   searchByFile(file: File, token: string) {
-    return request<{ detectedTags?: Record<string, number>; results: AssignmentMedia[] }>("/query/file", {
+    return request<unknown[]>("/query/by-file", {
       method: "POST",
       token,
       body: file,
       headers: { "Content-Type": file.type || "application/octet-stream" },
-    }).then((data) => data.results.map(normalizeMediaItem));
+    }).then((items) => items.map(normalizeMediaItem));
   },
 
   bulkEditTags(input: { ids: string[]; urls: string[]; tags: string[]; operation: 0 | 1 }, token: string) {
-    return request<{ updated: number; failed: unknown[] }>("/media/tags/bulk", {
+    return request<unknown[]>("/tags/bulk-edit", {
       method: "POST",
       token,
-      body: {
-        urls: input.urls,
-        tags: input.tags.map(cleanTag).filter(Boolean),
-        operation: input.operation,
-      },
-    }).then(() => [] as MediaItem[]);
+      body: input,
+    }).then((items) => items.map(normalizeMediaItem));
   },
 
   deleteFiles(input: { ids: string[]; urls: string[] }, token: string) {
-    return request<{ deleted: number; failed: unknown[] }>("/media/delete", {
+    return request<{ deletedIds?: string[] }>("/files/delete", {
       method: "POST",
       token,
-      body: { urls: input.urls },
-    }).then(() => ({ deletedIds: input.ids }));
+      body: input,
+    });
   },
 
   listSubscriptions(token: string) {
-    return request<{ tags?: string[]; settings?: NotificationSettings }>("/notifications/list", {
-      method: "POST",
+    return request<{ tags?: string[]; settings?: NotificationSettings }>("/notifications/subscriptions", {
       token,
-      body: {},
     });
   },
 
   addSubscription(tag: string, token: string) {
-    return request<{ tags?: string[]; message: string }>("/notifications/watch", {
+    return request<{ tags?: string[]; message?: string }>("/notifications/subscriptions", {
       method: "POST",
       token,
       body: { tag: cleanTag(tag) },
@@ -209,15 +208,19 @@ export const api = {
   },
 
   removeSubscription(tag: string, token: string) {
-    return request<{ tags?: string[] }>("/notifications/unwatch", {
-      method: "POST",
+    return request<{ tags?: string[] }>("/notifications/subscriptions", {
+      method: "DELETE",
       token,
       body: { tag: cleanTag(tag) },
     });
   },
 
-  updateNotificationSettings(settings: NotificationSettings) {
-    return Promise.resolve<{ settings?: NotificationSettings }>({ settings });
+  updateNotificationSettings(settings: NotificationSettings, token?: string | null) {
+    return request<{ settings?: NotificationSettings }>("/notifications/settings", {
+      method: "PUT",
+      token,
+      body: settings,
+    });
   },
 };
 

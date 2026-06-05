@@ -1,0 +1,10 @@
+MEDIA_TABLE=ecolens-media
+CHECKSUM_TABLE=ecolens-checksums
+SUBSCRIPTIONS_TABLE=ecolens-subscriptions
+SETTINGS_TABLE=ecolens-settings
+UPLOAD_BUCKET=ecolens-upload-bucket
+SIGNED_URL_EXPIRES=900
+GET_URL_EXPIRES=3600
+CORS_ORIGIN=http://localhost:5173
+SNS_TOPIC_PREFIX=ecolens-
+

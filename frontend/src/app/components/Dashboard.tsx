@@ -1,14 +1,17 @@
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Image as ImageIcon, Video, Tag, Bell, ArrowRight, TrendingUp } from "lucide-react";
 import { MediaCard } from "./MediaCard";
-import { useMediaLibrary } from "../media-library";
+import { MediaPreviewDialog } from "./MediaPreviewDialog";
+import { useMediaLibrary, type MediaItem } from "../media-library";
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { media, subscriptions } = useMediaLibrary();
+  const [open, setOpen] = useState<MediaItem | null>(null);
   const videos = media.filter((item) => item.type === "video").length;
   const tagTotals = media.reduce<Record<string, number>>((acc, item) => {
     item.tags.forEach((tag) => {
@@ -71,7 +74,7 @@ export function Dashboard() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {recent.map((m) => (
-                <MediaCard key={m.id} media={m} />
+                <MediaCard key={m.id} media={m} onOpen={setOpen} />
               ))}
             </div>
           </CardContent>
@@ -99,6 +102,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      <MediaPreviewDialog media={open} onClose={() => setOpen(null)} />
     </div>
   );
 }

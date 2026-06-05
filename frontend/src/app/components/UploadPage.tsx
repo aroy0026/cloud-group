@@ -6,7 +6,8 @@ import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { UploadCloud, FileVideo, FileImage, AlertTriangle, Loader2, CheckCircle2, RefreshCw } from "lucide-react";
 import { MediaCard } from "./MediaCard";
-import { calculateFileChecksum, readImageAsDataUrl, useMediaLibrary } from "../media-library";
+import { MediaPreviewDialog } from "./MediaPreviewDialog";
+import { calculateFileChecksum, readImageAsDataUrl, useMediaLibrary, type MediaItem } from "../media-library";
 
 const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "video/mp4", "video/quicktime"];
@@ -70,6 +71,7 @@ export function UploadPage() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [open, setOpen] = useState<MediaItem | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recent = [...media]
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
@@ -263,7 +265,7 @@ export function UploadPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {recent.map((m) => (
-              <MediaCard key={m.id} media={m} />
+              <MediaCard key={m.id} media={m} onOpen={setOpen} />
             ))}
             {!recent.length && (
               <p className="text-sm text-muted-foreground">No media yet. Upload a file to populate the library.</p>
@@ -271,6 +273,7 @@ export function UploadPage() {
           </div>
         </CardContent>
       </Card>
+      <MediaPreviewDialog media={open} onClose={() => setOpen(null)} />
     </div>
   );
 }

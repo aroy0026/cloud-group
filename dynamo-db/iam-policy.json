@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DynamoDbTableAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-media",
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-checksums",
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-subscriptions",
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-settings"
+      ]
+    }
+  ]
+}
+

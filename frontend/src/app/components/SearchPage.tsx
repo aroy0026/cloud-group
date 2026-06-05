@@ -5,12 +5,10 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card, CardContent } from "./ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
-import { Badge } from "./ui/badge";
 import { Plus, X, Search, UploadCloud, Loader2, ImageOff, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { MediaCard } from "./MediaCard";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { MediaPreviewDialog } from "./MediaPreviewDialog";
 import { useMediaLibrary, type MediaItem } from "../media-library";
 
 type TagRow = { id: string; tag: string; count: string };
@@ -284,39 +282,7 @@ export function SearchPage() {
         )}
       </div>
 
-      <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent className="max-w-3xl">
-          {open && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{open.name}</DialogTitle>
-              </DialogHeader>
-              <div className="rounded-lg overflow-hidden bg-muted aspect-video">
-                <ImageWithFallback src={open.thumbnail} alt={open.name} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex flex-wrap gap-1 mt-3">
-                {open.tags.map((t) => (
-                  <Badge key={t.name} variant="secondary">{t.name} ×{t.count}</Badge>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm mt-3">
-                <div><span className="text-muted-foreground">Type:</span> {open.type}</div>
-                <div><span className="text-muted-foreground">ID:</span> {open.id}</div>
-              </div>
-              {open.type === "video" && (
-                <Button className="mt-3 w-fit" onClick={() => window.open(open.fullUrl || open.thumbnail, "_blank", "noopener,noreferrer")}>
-                  <ExternalLink className="mr-2 h-4 w-4" /> Open video URL
-                </Button>
-              )}
-              {open.type === "image" && (
-                <Button className="mt-3 w-fit" variant="outline" onClick={() => window.open(open.fullUrl || open.thumbnail, "_blank", "noopener,noreferrer")}>
-                  <ExternalLink className="mr-2 h-4 w-4" /> Open full‑size image
-                </Button>
-              )}
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <MediaPreviewDialog media={open} onClose={() => setOpen(null)} />
     </div>
   );
 }
