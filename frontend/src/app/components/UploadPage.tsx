@@ -1,10 +1,10 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { UploadCloud, FileVideo, FileImage, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
+import { UploadCloud, FileVideo, FileImage, AlertTriangle, Loader2, CheckCircle2, RefreshCw } from "lucide-react";
 import { MediaCard } from "./MediaCard";
 import { calculateFileChecksum, readImageAsDataUrl, useMediaLibrary } from "../media-library";
 
@@ -22,6 +22,7 @@ type UploadStatus =
 
 type UploadFile = {
   id: string;
+  mediaId?: string;
   name: string;
   type: string;
   size: number;
@@ -65,13 +66,27 @@ function formatSize(b: number) {
 }
 
 export function UploadPage() {
-  const { media, uploadMedia } = useMediaLibrary();
+  const { media, uploadMedia, refreshMedia } = useMediaLibrary();
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const recent = [...media]
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
     .slice(0, 6);
+
+  useEffect(() => {
+    setFiles((current) =>
+      current.map((file) => {
+        if (!file.mediaId || file.status === "duplicate" || file.status === "error") return file;
+        const item = media.find((candidate) => candidate.id === file.mediaId);
+        const backendStatus = item?.status?.toUpperCase();
+        if (backendStatus === "READY") return { ...file, status: "done" };
+        if (backendStatus === "FAILED" || backendStatus === "ERROR") return { ...file, status: "error" };
+        return { ...file, status: "processing" };
+      })
+    );
+  }, [media]);
 
   const addFiles = (list: FileList | File[]) => {
     const arr = Array.from(list);
@@ -100,8 +115,12 @@ export function UploadPage() {
   };
 
   const processFile = async (file: File, id: string) => {
-    const update = (status: UploadStatus) =>
-      setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, status } : f)));
+    const update = (patch: UploadStatus | Partial<UploadFile>) =>
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === id ? { ...f, ...(typeof patch === "string" ? { status: patch } : patch) } : f
+        )
+      );
 
     try {
       const checksum = await calculateFileChecksum(file);
@@ -114,12 +133,15 @@ export function UploadPage() {
         dataUrl,
       });
       if (result.duplicate) {
-        update("duplicate");
+        update({ status: "duplicate", mediaId: result.file?.id });
         toast.warning("Duplicate file detected", { description: "This file already exists in your library." });
         return;
       }
-      update("done");
-      toast.success("Upload successful", { description: "The file was uploaded and queued for tagging." });
+      update({
+        mediaId: result.file?.id,
+        status: result.file?.status?.toUpperCase() === "READY" ? "done" : "processing",
+      });
+      toast.success("Upload successful", { description: "The file was uploaded and processing has started." });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not upload or process this file.";
       update("error");
@@ -216,7 +238,29 @@ export function UploadPage() {
 
       <Card className="border-border">
         <CardContent className="p-5">
-          <h3 className="mb-4">Recent uploads</h3>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3>Uploaded media</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                try {
+                  await refreshMedia();
+                  toast.success("Media refreshed from database");
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : "Could not refresh media.";
+                  toast.error("Refresh failed", { description: message });
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {recent.map((m) => (
               <MediaCard key={m.id} media={m} />

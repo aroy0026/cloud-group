@@ -8,7 +8,7 @@ import {
 
 const region = import.meta.env.VITE_AWS_REGION ?? "";
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID ?? "";
-const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID ?? "";
+const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID ?? import.meta.env.VITE_COGNITO_CLIENT_ID ?? "";
 
 export const cognitoEnabled = Boolean(region && userPoolId && clientId);
 
@@ -118,6 +118,11 @@ export function cognitoGetCurrentSession() {
       resolve(toSession(session, user.getUsername()));
     });
   });
+}
+
+export async function cognitoGetCurrentIdToken() {
+  const session = await cognitoGetCurrentSession();
+  return session?.idToken ?? null;
 }
 
 export function cognitoSignOut() {

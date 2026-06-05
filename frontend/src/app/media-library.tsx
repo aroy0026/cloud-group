@@ -1,6 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Media } from "./components/MediaCard";
-import { SAMPLE_MEDIA } from "./components/sample-data";
 import { api } from "./api";
 import { useAuth } from "./auth";
 
@@ -10,6 +9,8 @@ export type MediaItem = Media & {
   createdAt: string;
   size?: number;
   mimeType?: string;
+  status?: string;
+  error?: string;
   source: "seed" | "upload";
 };
 
@@ -56,9 +57,9 @@ type MediaLibraryCtx = {
 const MEDIA_STORAGE_KEY = "ecolens_media_v1";
 const SUB_STORAGE_KEY = "ecolens_subscriptions_v1";
 const SETTINGS_STORAGE_KEY = "ecolens_notification_settings_v1";
+const MEDIA_REFRESH_MS = 60_000;
 
-const VIDEO_THUMBNAIL =
-  "https://images.unsplash.com/photo-1588475935720-845e2aacb8c6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=600&q=80";
+const VIDEO_THUMBNAIL = "";
 
 const KNOWN_TAGS = [
   "koala",
@@ -79,15 +80,20 @@ const Ctx = createContext<MediaLibraryCtx | null>(null);
 
 export function MediaLibraryProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
-  const [media, setMedia] = useState<MediaItem[]>(loadMedia);
-  const [subscriptions, setSubscriptions] = useState<string[]>(loadSubscriptions);
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [subscriptions, setSubscriptions] = useState<string[]>([]);
   const [notificationSettings, setNotificationSettingsState] =
     useState<NotificationSettings>(loadNotificationSettings);
+  const mediaRef = useRef(media);
+
+  useEffect(() => {
+    mediaRef.current = media;
+  }, [media]);
 
   useEffect(() => {
     if (!api.enabled || !token) return;
 
-    refreshMedia();
+    refreshMedia({ includePendingDetails: false });
     api.listSubscriptions(token)
       .then((data) => {
         if (data.tags) {
@@ -102,20 +108,52 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
       .catch(() => undefined);
   }, [token]);
 
+  useEffect(() => {
+    if (!api.enabled || !token) return;
+    const hasActiveProcessing = media.some((item) => shouldPoll(item));
+    if (!hasActiveProcessing) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      await refreshMedia({ includePendingDetails: false });
+    };
+
+    const interval = window.setInterval(poll, MEDIA_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [media.some((item) => shouldPoll(item)), token]);
+
   const persistMedia = (updater: MediaItem[] | ((current: MediaItem[]) => MediaItem[])) => {
     setMedia((current) => {
       const next = typeof updater === "function" ? updater(current) : updater;
-      save(MEDIA_STORAGE_KEY, next);
       return next;
     });
   };
 
   const hasChecksum = (checksum: string) => media.some((item) => item.checksum === checksum);
 
-  const refreshMedia = async () => {
+  const refreshMedia = async (options: { includePendingDetails?: boolean } = {}) => {
     if (!api.enabled || !token) return;
-    const items = await api.listMedia(token);
-    persistMedia(items);
+    const listed = await api.listMedia(token).catch(() => []);
+    if (listed.length) {
+      persistMedia((current) => mergeListedMedia(current, listed));
+    }
+    if (!options.includePendingDetails) return;
+    const currentUploads = listed.length ? mergeListedMedia(mediaRef.current, listed) : mediaRef.current;
+    const updates = await Promise.all(
+      currentUploads
+        .filter((item) => item.source === "upload")
+        .map((item) =>
+          api.getMedia(item.id, token)
+            .then((fresh) => (fresh ? mergeMediaItem(item, fresh) : null))
+            .catch(() => null)
+        )
+    );
+    const ready = updates.filter(Boolean) as MediaItem[];
+    if (ready.length) persistMedia((current) => mergeUpdatedMedia(current, ready));
   };
 
   const uploadMedia: MediaLibraryCtx["uploadMedia"] = async (input) => {
@@ -126,9 +164,26 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
         token,
       });
       if (result.file) {
+        const uploaded = mergeMediaItem(
+          {
+            id: result.file.id,
+            name: input.file.name,
+            type: input.file.type.startsWith("video") ? "video" : "image",
+            thumbnail: input.file.type.startsWith("image") && input.dataUrl ? input.dataUrl : "",
+            fullUrl: input.dataUrl ?? "",
+            tags: [],
+            checksum: input.checksum,
+            createdAt: new Date().toISOString(),
+            size: input.file.size,
+            mimeType: input.file.type || "application/octet-stream",
+            status: "PROCESSING",
+            source: "upload",
+          },
+          result.file
+        );
         persistMedia((current) => {
-          const rest = current.filter((item) => item.id !== result.file?.id);
-          return [result.file as MediaItem, ...rest];
+          const rest = current.filter((item) => item.id !== uploaded.id);
+          return [uploaded, ...rest];
         });
       }
       return result;
@@ -152,10 +207,11 @@ export function MediaLibraryProvider({ children }: { children: ReactNode }) {
       id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: input.name,
       type,
-      thumbnail: type === "image" && input.dataUrl ? input.dataUrl : VIDEO_THUMBNAIL,
+      thumbnail: type === "image" && input.dataUrl ? input.dataUrl : "",
       fullUrl: input.dataUrl ?? "",
       tags: inferTags(input.name),
       checksum: input.checksum,
+      status: "READY",
       createdAt: new Date().toISOString(),
       size: input.size,
       mimeType: input.mimeType,
@@ -362,23 +418,15 @@ export function readImageAsDataUrl(file: File) {
 }
 
 function loadMedia(): MediaItem[] {
-  const stored = load<MediaItem[]>(MEDIA_STORAGE_KEY);
-  if (stored?.length) return stored;
-
-  return SAMPLE_MEDIA.map((item, index) => ({
-    ...item,
-    fullUrl: item.thumbnail,
-    createdAt: new Date(Date.now() - index * 86_400_000).toISOString(),
-    source: "seed" as const,
-  }));
+  return [];
 }
 
 function loadSubscriptions() {
-  return load<string[]>(SUB_STORAGE_KEY) ?? ["koala", "wombat"];
+  return load<string[]>(SUB_STORAGE_KEY) ?? [];
 }
 
 function loadNotificationSettings() {
-  return load<NotificationSettings>(SETTINGS_STORAGE_KEY) ?? { emailOn: true, thumbOn: true };
+  return load<NotificationSettings>(SETTINGS_STORAGE_KEY) ?? { emailOn: true, thumbOn: false };
 }
 
 function load<T>(key: string) {
@@ -415,5 +463,40 @@ function cleanTag(tag: string) {
 function mergeUpdatedMedia(current: MediaItem[], updated: MediaItem[]) {
   if (!updated.length) return current;
   const byId = new Map(updated.map((item) => [item.id, item]));
-  return current.map((item) => byId.get(item.id) ?? item);
+  return current.map((item) => {
+    const fresh = byId.get(item.id);
+    return fresh ? mergeMediaItem(item, fresh) : item;
+  });
+}
+
+function mergeListedMedia(current: MediaItem[], listed: MediaItem[]) {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  const merged = listed.map((item) => {
+    const existing = byId.get(item.id);
+    return existing ? mergeMediaItem(existing, item) : item;
+  });
+  const listedIds = new Set(listed.map((item) => item.id));
+  const localOnly = current.filter((item) => item.source !== "upload" || !listedIds.has(item.id));
+  return [...merged, ...localOnly];
+}
+
+function mergeMediaItem(current: MediaItem, fresh: MediaItem): MediaItem {
+  return {
+    ...current,
+    ...fresh,
+    thumbnail: fresh.thumbnail || current.thumbnail,
+    fullUrl: fresh.fullUrl || current.fullUrl,
+    tags: fresh.tags.length ? fresh.tags : current.tags,
+    checksum: fresh.checksum ?? current.checksum,
+    createdAt: fresh.createdAt ?? current.createdAt,
+    size: fresh.size ?? current.size,
+    mimeType: fresh.mimeType ?? current.mimeType,
+    source: "upload",
+  };
+}
+
+function shouldPoll(item: MediaItem) {
+  if (item.source !== "upload") return false;
+  const status = (item.status || "").toUpperCase();
+  return !["READY", "FAILED", "ERROR", "DELETED"].includes(status);
 }

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.zip
+*.log
+.env
+.env.local
+gcp/cloudrun_processor/model.pt
+gcp/cloudrun_processor/mdv5a.pt
+__pycache__/
+*.pyc

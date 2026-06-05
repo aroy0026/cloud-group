@@ -9,6 +9,8 @@ export type Media = {
   type: "image" | "video";
   thumbnail: string;
   tags: { name: string; count: number }[];
+  status?: string;
+  error?: string;
 };
 
 export function MediaCard({
@@ -44,6 +46,11 @@ export function MediaCard({
             {media.type === "video" ? <Video className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
             <span className="capitalize">{media.type}</span>
           </div>
+          {media.status && (
+            <div className={`absolute bottom-2 left-2 rounded-md px-1.5 py-0.5 text-xs ${statusClass(media.status)}`}>
+              {labelStatus(media.status)}
+            </div>
+          )}
         </div>
       </button>
       {showCheckbox && (
@@ -54,13 +61,32 @@ export function MediaCard({
       <div className="p-3 space-y-2">
         <div className="text-sm truncate text-foreground" title={media.name}>{media.name}</div>
         <div className="flex flex-wrap gap-1">
-          {media.tags.map((t) => (
+          {media.tags.length ? media.tags.map((t) => (
             <Badge key={t.name} variant="secondary" className="text-xs">
               {t.name} ×{t.count}
             </Badge>
-          ))}
+          )) : (
+            <Badge variant="outline" className="text-xs">tags pending</Badge>
+          )}
         </div>
+        {media.error && <p className="text-xs text-red-700 line-clamp-2">{media.error}</p>}
       </div>
     </div>
   );
+}
+
+function labelStatus(status: string) {
+  const upper = status.toUpperCase();
+  if (upper === "READY") return "Ready";
+  if (upper === "FAILED" || upper === "ERROR") return "Failed";
+  if (upper === "PRESIGNED") return "Upload reserved";
+  if (upper === "QUEUED") return "Queued";
+  return "Processing";
+}
+
+function statusClass(status: string) {
+  const upper = status.toUpperCase();
+  if (upper === "READY") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  if (upper === "FAILED" || upper === "ERROR") return "bg-red-50 text-red-700 border border-red-200";
+  return "bg-violet-50 text-violet-700 border border-violet-200";
 }

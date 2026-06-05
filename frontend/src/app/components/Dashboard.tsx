@@ -24,7 +24,7 @@ export function Dashboard() {
     .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
     .slice(0, 6);
   const stats = [
-    { label: "Total media", value: media.length.toLocaleString(), icon: ImageIcon, hint: "Stored locally for demo" },
+    { label: "Total media", value: media.length.toLocaleString(), icon: ImageIcon, hint: "Fetched from database" },
     { label: "Videos", value: videos.toLocaleString(), icon: Video, hint: "Image/video split" },
     { label: "Unique tags", value: uniqueTagCount.toLocaleString(), icon: Tag, hint: "Auto-generated + manual" },
     { label: "Subscriptions", value: subscriptions.length.toLocaleString(), icon: Bell, hint: "Active alerts" },

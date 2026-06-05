@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     cognitoGetCurrentSession()
       .then((session) => {
         if (session) {
-          persistSession(session.email, session.accessToken);
+          persistSession(session.email, session.idToken);
           return;
         }
 
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (input: { email: string; password: string }) => {
     if (cognitoEnabled) {
       const session = await cognitoSignIn(input);
-      persistSession(session.email, session.accessToken);
+      persistSession(session.email, session.idToken);
       return;
     }
 
