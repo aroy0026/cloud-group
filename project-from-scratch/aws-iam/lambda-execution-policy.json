@@ -1,0 +1,71 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3BucketList",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::ecolens-upload-bucket"
+    },
+    {
+      "Sid": "S3ObjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ecolens-upload-bucket/uploads/*",
+        "arn:aws:s3:::ecolens-upload-bucket/thumbnails/*",
+        "arn:aws:s3:::ecolens-upload-bucket/frames/*",
+        "arn:aws:s3:::ecolens-upload-bucket/lambda-artifacts/*"
+      ]
+    },
+    {
+      "Sid": "DynamoDbAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-media",
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-checksums",
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-subscriptions",
+        "arn:aws:dynamodb:ap-southeast-2:397450412956:table/ecolens-settings"
+      ]
+    },
+    {
+      "Sid": "SnsNotifications",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:Subscribe",
+        "sns:Publish"
+      ],
+      "Resource": "arn:aws:sns:ap-southeast-2:397450412956:ecolens-*"
+    },
+    {
+      "Sid": "ReadGcpWifSecret",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:ap-southeast-2:397450412956:secret:ecolens-gcp-wif-credential-config-*"
+    }
+  ]
+}
+

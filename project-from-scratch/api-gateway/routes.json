@@ -1,0 +1,17 @@
+[
+  ["POST /upload/prepare", "ecolens-upload-prepare"],
+  ["POST /upload/complete", "ecolens-upload-complete"],
+  ["POST /upload", "ecolens-upload"],
+  ["GET /files", "ecolens-files-list"],
+  ["POST /files/delete", "ecolens-files-delete"],
+  ["POST /query/by-tags", "ecolens-query-by-tags"],
+  ["POST /query/by-species", "ecolens-query-by-species"],
+  ["POST /query/by-thumbnail", "ecolens-query-by-thumbnail"],
+  ["POST /query/by-file", "ecolens-query-by-file"],
+  ["POST /tags/bulk-edit", "ecolens-tags-bulk-edit"],
+  ["GET /notifications/subscriptions", "ecolens-notifications-subscriptions"],
+  ["POST /notifications/subscriptions", "ecolens-notifications-subscriptions"],
+  ["DELETE /notifications/subscriptions", "ecolens-notifications-subscriptions"],
+  ["PUT /notifications/settings", "ecolens-notifications-settings"]
+]
+

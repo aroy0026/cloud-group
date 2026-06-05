@@ -1,0 +1,10 @@
+.env
+*.zip
+dist/
+build/
+__pycache__/
+*.pyc
+.DS_Store
+gcp-cloudrun/model.pt
+gcp-cloudrun/mdv5a.pt
+

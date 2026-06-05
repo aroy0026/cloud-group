@@ -1,0 +1,47 @@
+{
+  "tables": [
+    {
+      "TableName": "ecolens-media",
+      "BillingMode": "PAY_PER_REQUEST",
+      "KeySchema": [
+        { "AttributeName": "ownerId", "KeyType": "HASH" },
+        { "AttributeName": "id", "KeyType": "RANGE" }
+      ],
+      "AttributeDefinitions": [
+        { "AttributeName": "ownerId", "AttributeType": "S" },
+        { "AttributeName": "id", "AttributeType": "S" }
+      ]
+    },
+    {
+      "TableName": "ecolens-checksums",
+      "BillingMode": "PAY_PER_REQUEST",
+      "KeySchema": [
+        { "AttributeName": "checksum", "KeyType": "HASH" }
+      ],
+      "AttributeDefinitions": [
+        { "AttributeName": "checksum", "AttributeType": "S" }
+      ]
+    },
+    {
+      "TableName": "ecolens-subscriptions",
+      "BillingMode": "PAY_PER_REQUEST",
+      "KeySchema": [
+        { "AttributeName": "ownerId", "KeyType": "HASH" }
+      ],
+      "AttributeDefinitions": [
+        { "AttributeName": "ownerId", "AttributeType": "S" }
+      ]
+    },
+    {
+      "TableName": "ecolens-settings",
+      "BillingMode": "PAY_PER_REQUEST",
+      "KeySchema": [
+        { "AttributeName": "ownerId", "KeyType": "HASH" }
+      ],
+      "AttributeDefinitions": [
+        { "AttributeName": "ownerId", "AttributeType": "S" }
+      ]
+    }
+  ]
+}
+

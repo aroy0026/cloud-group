@@ -1,0 +1,24 @@
+{
+  "ownerId": "cognito-user-sub",
+  "id": "media-uuid",
+  "name": "wildlife-video.mp4",
+  "type": "video",
+  "mimeType": "video/mp4",
+  "size": 7082787,
+  "checksum": "sha256-hex",
+  "bucket": "ecolens-upload-bucket",
+  "key": "uploads/cognito-user-sub/media-uuid/wildlife-video.mp4",
+  "fullUrl": "s3://ecolens-upload-bucket/uploads/cognito-user-sub/media-uuid/wildlife-video.mp4",
+  "thumbnail": "s3://ecolens-upload-bucket/thumbnails/cognito-user-sub/media-uuid/wildlife-video.jpg",
+  "framePrefix": "s3://ecolens-upload-bucket/frames/cognito-user-sub/media-uuid",
+  "frameS3Uris": [
+    "s3://ecolens-upload-bucket/frames/cognito-user-sub/media-uuid/frame_000001.jpg"
+  ],
+  "frameCount": 12,
+  "tags": {
+    "canis_dingo": 1
+  },
+  "status": "READY",
+  "createdAt": "2026-06-06T00:00:00+00:00",
+  "updatedAt": "2026-06-06T00:01:00+00:00"
+}
