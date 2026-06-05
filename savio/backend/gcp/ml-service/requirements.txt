@@ -1,0 +1,12 @@
+flask
+gunicorn
+onnx==1.16.2
+onnx2torch
+Pillow
+boto3
+google-cloud-storage
+requests
+pyyaml
+tqdm
+numpy
+opencv-python-headless
