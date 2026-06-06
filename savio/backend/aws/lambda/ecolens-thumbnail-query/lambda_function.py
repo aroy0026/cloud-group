@@ -27,11 +27,22 @@ class DecimalEncoder(json.JSONEncoder):
 
 
 def generate_presigned_url(s3_url, expiry=3600):
-    """Generate a presigned URL for an S3 object"""
+    """Generate a presigned URL handling both path-style and virtual-hosted S3 URLs"""
     try:
-        key = s3_url.replace(
-            f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/', ''
-        )
+        # Strip query params first
+        clean_url = s3_url.split('?')[0]
+        
+        virtual_prefix = f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/'
+        path_prefix = f'https://s3.ap-southeast-4.amazonaws.com/{BUCKET_NAME}/'
+        
+        if clean_url.startswith(virtual_prefix):
+            key = clean_url[len(virtual_prefix):]
+        elif clean_url.startswith(path_prefix):
+            key = clean_url[len(path_prefix):]
+        else:
+            print(f"Unknown URL format: {clean_url}")
+            return s3_url
+
         url = s3.generate_presigned_url(
             'get_object',
             Params={'Bucket': BUCKET_NAME, 'Key': key},
@@ -42,11 +53,17 @@ def generate_presigned_url(s3_url, expiry=3600):
         print(f"Error generating presigned URL: {str(e)}")
         return s3_url
 
-
 def normalize_thumbnail_url(url):
-    """Normalize URL by stripping query params (presigned URLs have expiry params)"""
-    return url.split('?')[0]
-
+    """Normalize S3 URL - strip query params and convert path-style to virtual-hosted"""
+    clean_url = url.split('?')[0]
+    virtual_prefix = f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/'
+    path_prefix = f'https://s3.ap-southeast-4.amazonaws.com/{BUCKET_NAME}/'
+    if clean_url.startswith(virtual_prefix):
+        return clean_url
+    if clean_url.startswith(path_prefix):
+        key = clean_url[len(path_prefix):]
+        return f'{virtual_prefix}{key}'
+    return clean_url
 
 def lambda_handler(event, context):
     try:

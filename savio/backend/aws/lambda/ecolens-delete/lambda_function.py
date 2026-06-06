@@ -18,22 +18,33 @@ CORS_HEADERS = {
     'Access-Control-Allow-Methods': 'POST,OPTIONS'
 }
 
+def normalize_s3_url(url):
+    """Normalize S3 URL to virtual-hosted style without query params"""
+    clean_url = url.split('?')[0]
+    virtual_prefix = f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/'
+    path_prefix = f'https://s3.ap-southeast-4.amazonaws.com/{BUCKET_NAME}/'
+    if clean_url.startswith(virtual_prefix):
+        return clean_url
+    if clean_url.startswith(path_prefix):
+        key = clean_url[len(path_prefix):]
+        return f'{virtual_prefix}{key}'
+    return clean_url
 
 def url_to_s3_key(url):
-    """Extract S3 key from a full S3 URL"""
-    clean_url = url.split('?')[0]
-    prefix = f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/'
-    if clean_url.startswith(prefix):
-        return clean_url[len(prefix):]
+    """Extract S3 key from a normalized S3 URL"""
+    normalized = normalize_s3_url(url)
+    virtual_prefix = f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/'
+    if normalized.startswith(virtual_prefix):
+        return normalized[len(virtual_prefix):]
     return None
 
 
 def find_record_by_url(table, url):
     """Find a DynamoDB record by file_url"""
-    clean_url = url.split('?')[0]
+    normalized = normalize_s3_url(url)
     response = table.scan(
         FilterExpression='file_url = :url',
-        ExpressionAttributeValues={':url': clean_url}
+        ExpressionAttributeValues={':url': normalized}
     )
     items = response.get('Items', [])
     return items[0] if items else None

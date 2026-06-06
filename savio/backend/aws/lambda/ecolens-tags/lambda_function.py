@@ -21,26 +21,25 @@ class DecimalEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def url_to_s3_key(url):
-    """Extract S3 key from a full S3 URL"""
-    prefix = f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/'
-    if url.startswith(prefix):
-        return url[len(prefix):]
-    # Handle presigned URLs - strip query params first
+def normalize_s3_url(url):
+    """Normalize S3 URL to virtual-hosted style without query params"""
     clean_url = url.split('?')[0]
-    if clean_url.startswith(prefix):
-        return clean_url[len(prefix):]
-    return None
+    virtual_prefix = f'https://{BUCKET_NAME}.s3.ap-southeast-4.amazonaws.com/'
+    path_prefix = f'https://s3.ap-southeast-4.amazonaws.com/{BUCKET_NAME}/'
+    if clean_url.startswith(virtual_prefix):
+        return clean_url
+    if clean_url.startswith(path_prefix):
+        key = clean_url[len(path_prefix):]
+        return f'{virtual_prefix}{key}'
+    return clean_url
 
 
 def find_record_by_url(table, url):
     """Find a DynamoDB record by file_url or thumbnail_url"""
-    # Normalize URL (strip query params)
-    clean_url = url.split('?')[0]
-
+    normalized = normalize_s3_url(url)
     response = table.scan(
         FilterExpression='file_url = :url OR thumbnail_url = :url',
-        ExpressionAttributeValues={':url': clean_url}
+        ExpressionAttributeValues={':url': normalized}
     )
     items = response.get('Items', [])
     return items[0] if items else None
